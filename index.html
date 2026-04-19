@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D 教學工具 - 中五下學期統測Q13</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        
+        body { margin: 0; padding: 0; background-color: #f4f4f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden;}
+        #myDiv { width: 100vw; height: 100vh; }
+        #control-panel { 
+            position: absolute; top: 15px; left: 15px; background: rgba(255,255,255,0.95); 
+            padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            z-index: 10; max-width: 320px;
+            touch-action: none;
+        }
+        h3 { margin-top: 0; color: #333; font-size: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px;}
+        
+        .toggle-container { display: flex; gap: 8px; margin-bottom: 15px; margin-top: 15px; }
+        .toggle-btn { 
+            flex: 1; padding: 10px; font-size: 15px; text-align: center; font-weight: bold;
+            border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;
+        }
+        .toggle-active { background-color: #2c3e50; color: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+        .toggle-inactive { background-color: #e0e0e0; color: #7f8c8d; }
+        .toggle-inactive:hover { background-color: #d5d5d5; }
+
+        button.action-btn {
+            display: block; width: 100%; padding: 12px 10px; margin-bottom: 8px;
+            background-color: #4CAF50; color: white; border: none; border-radius: 6px;
+            font-size: 15px; cursor: pointer; text-align: left; transition: 0.2s;
+        }
+        button.action-btn:hover { filter: brightness(1.1); transform: translateX(2px); }
+        .btn-reset { background-color: #666; margin-bottom: 15px; text-align: center; font-weight: bold;}
+        .btn-a { background-color: #e67e22; }
+        .btn-b { background-color: #3498db; }
+        .btn-b-highlight { background-color: #9b59b6; }
+        p.hint { font-size: 14px; color: #666; margin-bottom: 0; margin-top: 15px; line-height: 1.4;}
+    </style>
+</head>
+<body>
+    <div id="control-panel">
+        <h3>📝 中五下學期統測Q13</h3>
+        
+        <div class="toggle-container">
+            <button id="btn-pc" class="toggle-btn toggle-active" onclick="setDeviceMode('pc')">💻 電腦</button>
+            <button id="btn-ipad" class="toggle-btn toggle-inactive" onclick="setDeviceMode('ipad')">📱 iPad</button>
+        </div>
+
+        <button class="action-btn btn-reset" onclick="updateView('reset')">🔄 重置視角 (正對 VPQ)</button>
+        
+        <div style="font-weight:bold; margin-bottom:8px; margin-top:5px; color:#e67e22; font-size:16px;">Part (a) 求 ∠VPQ</div>
+        <button class="action-btn btn-a" onclick="updateView('part-a-1')">1️⃣ 聚焦 △VPQ 及已知條件</button>
+        <button class="action-btn btn-a" onclick="updateView('part-a-2')">2️⃣ 標示目標 ∠VPQ</button>
+
+        <hr style="border: 0; border-top: 1px solid #ddd; margin: 15px 0;">
+        <div style="font-weight:bold; margin-bottom:8px; color:#3498db; font-size:16px;">Part (b)(i) 求梯形 ABCD 面積</div>
+        <button class="action-btn btn-b" onclick="updateView('part-b-1')">3️⃣ 標示中點 A, B, C, D</button>
+        <button class="action-btn btn-b" onclick="updateView('part-b-2')">4️⃣ 抽出梯形 ABCD 及底邊長</button>
+        <button class="action-btn btn-b" onclick="updateView('part-b-3')">5️⃣ 求梯形腰長 (搵 AD)</button>
+        <button class="action-btn btn-b-highlight" onclick="updateView('part-b-4')">6️⃣ 設 E 於 CD 上，作 AE ⊥ CD</button>
+
+        <p id="hint-text" class="hint">💡 <strong>提示：</strong>滑鼠左鍵拖曳可旋轉，滾輪可縮放。</p>
+    </div>
+    <div id="myDiv"></div>
+
+    <script>
+        document.getElementById('control-panel').addEventListener('touchmove', function(e) {
+            e.stopPropagation();
+        }, { passive: false });
+
+        const x = [15.77, 10.5, 10.5, 0, 0, 2.64, 2.64, -10.5, -10.5, 0];
+        const y = [0, -6, 6, -6, 6, -3, 3, -6, 6, -3];
+        const z = [13.18, 0, 0, 0, 0, 6.59, 6.59, 0, 0, 0];
+
+        const defaultCamera = { 
+            eye: {x: 0, y: -2.8, z: 0.9},
+            center: {x: -0.3, y: 0, z: -0.1}
+        };
+
+        function createAngleArc(pCenter, p1, p2, radius, color) {
+            let v1 = [p1[0]-pCenter[0], p1[1]-pCenter[1], p1[2]-pCenter[2]];
+            let v2 = [p2[0]-pCenter[0], p2[1]-pCenter[1], p2[2]-pCenter[2]];
+            let len1 = Math.sqrt(v1[0]**2 + v1[1]**2 + v1[2]**2);
+            let len2 = Math.sqrt(v2[0]**2 + v2[1]**2 + v2[2]**2);
+            let u1 = [v1[0]/len1, v1[1]/len1, v1[2]/len1]; 
+            let u2 = [v2[0]/len2, v2[1]/len2, v2[2]/len2]; 
+            
+            let arcX = [], arcY = [], arcZ = [];
+            let steps = 15;
+            for(let i=0; i<=steps; i++) {
+                let t = i/steps;
+                let v = [
+                    u1[0]*(1-t) + u2[0]*t,
+                    u1[1]*(1-t) + u2[1]*t,
+                    u1[2]*(1-t) + u2[2]*t
+                ];
+                let vLen = Math.sqrt(v[0]**2 + v[1]**2 + v[2]**2);
+                arcX.push(pCenter[0] + (v[0]/vLen)*radius);
+                arcY.push(pCenter[1] + (v[1]/vLen)*radius);
+                arcZ.push(pCenter[2] + (v[2]/vLen)*radius);
+            }
+            return {
+                type: 'scatter3d', mode: 'lines',
+                x: arcX, y: arcY, z: arcZ,
+                line: {color: color, width: 5}, hoverinfo: 'none'
+            };
+        }
+
+        const wireframe = {
+            type: 'scatter3d', mode: 'lines',
+            x: [x[0],x[7],null, x[0],x[1],null, x[0],x[2],null, x[0],x[8],null, x[7],x[1],x[2],x[8],x[7]],
+            y: [y[0],y[7],null, y[0],y[1],null, y[0],y[2],null, y[0],y[8],null, y[7],y[1],y[2],y[8],y[7]],
+            z: [z[0],z[7],null, z[0],z[1],null, z[0],z[2],null, z[0],z[8],null, z[7],z[1],z[2],z[8],z[7]],
+            line: {color: '#888', width: 3}, name: '原圖線框', hoverinfo: 'none'
+        };
+
+        const baseLabels = {
+            type: 'scatter3d', mode: 'text',
+            x: [x[0], x[1], x[2], x[7], x[8]],
+            y: [y[0], y[1], y[2], y[7], y[8]],
+            z: [z[0]+0.8, z[1], z[2], z[7], z[8]],
+            text: ['V', 'Q', 'R', 'P', 'S'],
+            textfont: {size: 18, color: 'black'}, hoverinfo: 'none'
+        };
+
+        const faceVPQ = {
+            type: 'mesh3d', x: [x[0],x[7],x[1]], y: [y[0],y[7],y[1]], z: [z[0],z[7],z[1]],
+            i: [0], j: [1], k: [2], color: '#f1c40f', opacity: 0.6, name: '△VPQ'
+        };
+
+        const arc110 = createAngleArc([x[1],y[1],z[1]], [x[7],y[7],z[7]], [x[0],y[0],z[0]], 1.8, '#d35400');
+        const arcVPQ = createAngleArc([x[7],y[7],z[7]], [x[1],y[1],z[1]], [x[0],y[0],z[0]], 3.5, 'red');
+
+        const labelsPartA = {
+            type: 'scatter3d', mode: 'text',
+            x: [2.6, 0, 8.5], 
+            y: [-3, -6, -5.0], 
+            z: [6.6, 0, 1.5], 
+            text: ['30 cm', '21 cm', '110°'],
+            textfont: {size: 16, color: '#d35400', weight: 'bold'}, hoverinfo: 'none'
+        };
+        
+        const targetAngleA = {
+            type: 'scatter3d', mode: 'text', 
+            x: [-6.5], y: [-4.8], z: [2.5], 
+            text: ['∠VPQ ?'], textfont: {size: 18, color: 'red', weight: 'bold'}, hoverinfo: 'none'
+        };
+
+        const midPoints = {
+            type: 'scatter3d', mode: 'markers+text',
+            x: [x[3], x[4], x[5], x[6]], y: [y[3], y[4], y[5], y[6]], z: [z[3], z[4], z[5], z[6]],
+            marker: {size: 7, color: 'blue'}, text: ['D', 'C', 'A', 'B'],
+            textposition: 'top center', textfont: {size: 18, color: 'blue', weight: 'bold'}, hoverinfo: 'none'
+        };
+        
+        const faceABCD = {
+            type: 'mesh3d', 
+            x: [x[3],x[4],x[5],x[6]], y: [y[3],y[4],y[5],y[6]], z: [z[3],z[4],z[5],z[6]],
+            i: [2, 2], j: [3, 1], k: [1, 0], 
+            color: '#3498db', opacity: 0.7, name: '梯形ABCD'
+        };
+
+        const labelsPartB1 = {
+            type: 'scatter3d', mode: 'text',
+            x: [2.6, 0], y: [0, 0], z: [6.6, 0.5],
+            text: ['AB = 6', 'CD = 12'],
+            textfont: {size: 16, color: '#2980b9', weight: 'bold'}, hoverinfo: 'none'
+        };
+        
+        const lineAD = {
+            type: 'scatter3d', mode: 'lines+text',
+            x: [x[5], x[3]], y: [y[5], y[3]], z: [z[5], z[3]],
+            line: {color: 'red', width: 5, dash: 'dot'},
+            text: ['AD (腰長)'], textposition: 'middle right',
+            textfont: {size: 16, color: 'red', weight: 'bold'}, hoverinfo: 'none'
+        };
+
+        const pointE = {
+            type: 'scatter3d', mode: 'markers+text',
+            x: [x[9]], y: [y[9]], z: [z[9]],
+            marker: {size: 8, color: '#8e44ad'}, text: ['E'],
+            textposition: 'bottom right', textfont: {size: 18, color: '#8e44ad', weight: 'bold'}, hoverinfo: 'none'
+        };
+        const lineAE = {
+            type: 'scatter3d', mode: 'lines+text',
+            x: [x[5], x[9]], y: [y[5], y[9]], z: [z[5], z[9]], 
+            line: {color: '#9b59b6', width: 6, dash: 'dot'},
+            text: ['高 h'], textposition: 'middle left',
+            textfont: {size: 18, color: '#9b59b6', weight: 'bold'}, hoverinfo: 'none'
+        };
+        const labelDE = {
+            type: 'scatter3d', mode: 'text',
+            x: [0], y: [-4.5], z: [0.5], 
+            text: ['DE = 3'],
+            textfont: {size: 16, color: '#27ae60', weight: 'bold'}, hoverinfo: 'none'
+        };
+        const rightAngle = {
+            type: 'scatter3d', mode: 'lines',
+            x: [0, 0.37, 0.37], y: [-4, -4, -3], z: [0, 0.93, 0.93],
+            line: {color: '#8e44ad', width: 4}, hoverinfo: 'none'
+        };
+
+        let currentLayout = {
+            scene: { aspectmode: 'data', camera: defaultCamera,
+                xaxis: {visible: false}, yaxis: {visible: false}, zaxis: {visible: false}
+            },
+            showlegend: false, margin: {l: 0, r: 0, b: 0, t: 0},
+            dragmode: 'turntable' 
+        };
+        
+        Plotly.newPlot('myDiv', [wireframe, baseLabels], currentLayout, {displayModeBar: false});
+
+        function setDeviceMode(mode) {
+            const btnPc = document.getElementById('btn-pc');
+            const btnIpad = document.getElementById('btn-ipad');
+            const hintText = document.getElementById('hint-text');
+
+            if (mode === 'pc') {
+                btnPc.className = 'toggle-btn toggle-active';
+                btnIpad.className = 'toggle-btn toggle-inactive';
+                hintText.innerHTML = '💡 <strong>提示：</strong>滑鼠左鍵拖曳可旋轉，滾輪可縮放。';
+                // 電腦：用 turntable (鎖定 Z 軸向上)
+                Plotly.relayout('myDiv', {dragmode: 'turntable', 'scene.camera': defaultCamera});
+            } else {
+                btnPc.className = 'toggle-btn toggle-inactive';
+                btnIpad.className = 'toggle-btn toggle-active';
+                hintText.innerHTML = '💡 <strong>觸控提示：</strong><br>👆 單指滑動可旋轉圖形<br>✌️ 雙指捏合可放大縮小';
+                // 【修正】iPad 亦轉用 turntable，防止立體圖上下顛倒！
+                Plotly.relayout('myDiv', {dragmode: 'turntable', 'scene.camera': defaultCamera});
+            }
+        }
+
+        function updateView(step) {
+            let data = [wireframe, baseLabels];
+
+            if (step === 'reset') {
+                Plotly.relayout('myDiv', {'scene.camera': defaultCamera});
+                Plotly.react('myDiv', data, currentLayout, {displayModeBar: false});
+                return;
+            }
+
+            if (step === 'part-a-1') {
+                data.push(faceVPQ, labelsPartA, arc110);
+            }
+            else if (step === 'part-a-2') {
+                data.push(faceVPQ, labelsPartA, arc110, arcVPQ, targetAngleA);
+            }
+            else if (step === 'part-b-1') {
+                data.push(midPoints);
+            }
+            else if (step === 'part-b-2') {
+                data.push(midPoints, faceABCD, labelsPartB1);
+            }
+            else if (step === 'part-b-3') {
+                let faintVPQ = Object.assign({}, wireframe, {line: {color: '#ccc', width: 1}});
+                data = [faintVPQ, baseLabels, midPoints, faceABCD, labelsPartB1, lineAD, faceVPQ];
+            }
+            else if (step === 'part-b-4') {
+                data.push(midPoints, faceABCD, labelsPartB1, pointE, lineAE, labelDE, rightAngle);
+            }
+            
+            Plotly.react('myDiv', data, currentLayout, {displayModeBar: false});
+        }
+    </script>
+</body>
+</html>
